@@ -5,20 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FEFUTIN Torneos</title>
     
-    <!-- Cargamos Tailwind CSS para los estilos -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Cargamos FontAwesome para los íconos -->
+    <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Cargamos React -->
+    <!-- React y ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     
-    <!-- Cargamos Babel para que el navegador entienda nuestro código JSX -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Cargamos Firebase SDKs y tus credenciales -->
+    <!-- Firebase SDKs y tus credenciales -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
       import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -36,7 +36,6 @@
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
       
-      // Exponemos las funciones de Firebase globalmente para React
       window.FB_db = db;
       window.FB_doc = doc;
       window.FB_setDoc = setDoc;
@@ -44,15 +43,12 @@
     </script>
 
     <style>
-        /* Oculta la barra de desplazamiento pero permite hacer scroll */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        /* Mejora la barra de scroll de la lista de equipos */
         .scrollbar-thin::-webkit-scrollbar { width: 6px; }
         .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
         .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
         
-        /* Animación para el láser biométrico */
         @keyframes scan {
             0% { top: 0%; opacity: 0; }
             10% { opacity: 1; }
@@ -61,9 +57,7 @@
         }
         .scanner-line {
             position: absolute;
-            left: 0;
-            right: 0;
-            height: 2px;
+            left: 0; right: 0; height: 2px;
             background-color: #4ade80;
             box-shadow: 0 0 8px #4ade80, 0 0 15px #4ade80;
             animation: scan 2s ease-in-out infinite;
@@ -73,14 +67,11 @@
 </head>
 <body class="bg-neutral-100">
 
-    <!-- Aquí es donde React "dibujará" la aplicación -->
     <div id="root"></div>
 
-    <!-- Nuestro código de la aplicación -->
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
 
-        // --- ADAPTACIÓN DE ÍCONOS PARA HTML ---
         const Icon = ({ name, size = 24, className = "", type = "fa-solid" }) => (
           <i className={`${type} fa-${name} ${className}`} style={{ fontSize: size }}></i>
         );
@@ -90,11 +81,9 @@
         const Users = (props) => <Icon name="users" {...props} />;
         const ArrowLeft = (props) => <Icon name="arrow-left" {...props} />;
         const ChevronRight = (props) => <Icon name="chevron-right" {...props} />;
-        const Info = (props) => <Icon name="circle-info" {...props} />;
         const Shield = (props) => <Icon name="shield-halved" {...props} />;
         const TableIcon = (props) => <Icon name="table" {...props} />;
         const CalendarDays = (props) => <Icon name="calendar-days" {...props} />;
-        const Clock = (props) => <Icon name="clock" type="fa-regular" {...props} />;
         const CheckCircle2 = (props) => <Icon name="circle-check" {...props} />;
         const Lock = (props) => <Icon name="lock" {...props} />;
         const Unlock = (props) => <Icon name="unlock" {...props} />;
@@ -108,10 +97,8 @@
         const IdCard = (props) => <Icon name="id-card" type="fa-regular" {...props} />;
         const Fingerprint = (props) => <Icon name="fingerprint" {...props} />;
 
-        // URL del logo de la liga.
         const LOGO_URL = "https://yt3.googleusercontent.com/ytc/AIdro_k8JXexJVY6F3O_5kddNVf-HHJ_xnIOV6k1AbexrpaI9g=s900-c-k-c0x00ffffff-no-rj";
 
-        // Estructura de disciplinas (Base)
         const initialTournamentData = {
           "FEMENINO": {
             title: "Femenino", icon: Trophy, color: "bg-amber-500",
@@ -156,7 +143,6 @@
 
         function App() {
           const [disciplines, setDisciplines] = useState(initialTournamentData);
-
           const [currentView, setCurrentView] = useState('disciplines'); 
           const [selectedDiscipline, setSelectedDiscipline] = useState(null);
           const [selectedCategory, setSelectedCategory] = useState(null);
@@ -166,13 +152,10 @@
 
           const [isAdmin, setIsAdmin] = useState(false);
           const [db, setDb] = useState({}); 
-          
           const [modalConfig, setModalConfig] = useState(null); 
           const [formData, setFormData] = useState({});
-          
           const [scanState, setScanState] = useState(null);
 
-          // Sincronización en tiempo real con Firebase Firestore
           useEffect(() => {
             if (window.FB_db) {
               const docRef = window.FB_doc(window.FB_db, "fefutin", "torneos_data");
@@ -206,7 +189,6 @@
 
           const standings = useMemo(() => {
             let stats = currentData.teams.map(t => ({ ...t, pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 }));
-
             currentData.fixtures.forEach(f => {
               f.matches.forEach(m => {
                 if (m.status === 'FINALIZADO') {
@@ -216,7 +198,6 @@
                     home.pj++; away.pj++;
                     home.gf += Number(m.homeScore); home.gc += Number(m.awayScore);
                     away.gf += Number(m.awayScore); away.gc += Number(m.homeScore);
-                    
                     if (Number(m.homeScore) > Number(m.awayScore)) {
                       home.pts += 3; home.pg++; away.pp++;
                     } else if (Number(m.homeScore) < Number(m.awayScore)) {
@@ -228,7 +209,6 @@
                 }
               });
             });
-
             stats.forEach(t => t.dif = t.gf - t.gc);
             stats.sort((a, b) => b.pts - a.pts || b.dif - a.dif || b.gf - a.gf || a.name.localeCompare(b.name));
             return stats.map((t, i) => ({ ...t, pos: i + 1 }));
@@ -236,33 +216,24 @@
 
           const generalStandings = useMemo(() => {
             if (!selectedCategory) return [];
-            
             const globalStats = {};
-
             selectedCategory.divisions.forEach(div => {
               const divData = db[div.id] || { teams: [], fixtures: [] };
-              
               divData.teams.forEach(team => {
                 const teamNameUpper = team.name.toUpperCase();
                 if (!globalStats[teamNameUpper]) {
                   globalStats[teamNameUpper] = { id: team.id, name: team.name, logo: team.logo, pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
                 }
               });
-
               divData.fixtures.forEach(f => {
                 f.matches.forEach(m => {
                   if (m.status === 'FINALIZADO') {
                     let homeName = m.home.toUpperCase();
                     let awayName = m.away.toUpperCase();
-                    
                     if (globalStats[homeName] && globalStats[awayName]) {
-                      globalStats[homeName].pj++; 
-                      globalStats[awayName].pj++;
-                      globalStats[homeName].gf += Number(m.homeScore); 
-                      globalStats[homeName].gc += Number(m.awayScore);
-                      globalStats[awayName].gf += Number(m.awayScore); 
-                      globalStats[awayName].gc += Number(m.homeScore);
-                      
+                      globalStats[homeName].pj++; globalStats[awayName].pj++;
+                      globalStats[homeName].gf += Number(m.homeScore); globalStats[homeName].gc += Number(m.awayScore);
+                      globalStats[awayName].gf += Number(m.awayScore); globalStats[awayName].gc += Number(m.homeScore);
                       if (Number(m.homeScore) > Number(m.awayScore)) {
                         globalStats[homeName].pts += 3; globalStats[homeName].pg++; globalStats[awayName].pp++;
                       } else if (Number(m.homeScore) < Number(m.awayScore)) {
@@ -275,7 +246,6 @@
                 });
               });
             });
-
             const statsArray = Object.values(globalStats);
             statsArray.forEach(t => t.dif = t.gf - t.gc);
             statsArray.sort((a, b) => b.pts - a.pts || b.dif - a.dif || b.gf - a.gf || a.name.localeCompare(b.name));
@@ -364,13 +334,11 @@
             if(!formData.home || !formData.away) return;
             const homeTeam = currentData.teams.find(t => t.id === formData.home);
             const awayTeam = currentData.teams.find(t => t.id === formData.away);
-            
             const newMatch = {
               id: Date.now(), home: homeTeam.name, away: awayTeam.name,
               homeLogo: homeTeam.logo, awayLogo: awayTeam.logo,
               date: formData.date || "Por definir", status: "PROGRAMADO"
             };
-
             updateDatabase(prev => {
               const divData = prev[selectedDivision.id];
               const updatedFixtures = divData.fixtures.map(f => 
@@ -405,7 +373,6 @@
               setFormData(prev => ({...prev, rosterError: "Completa Nombre, DNI y Fecha de Nacimiento."}));
               return;
             }
-
             if (formData.playerPhotoBase64 && formData.playerDniPhotoBase64 && !scanState) {
                 setScanState('scanning');
                 setTimeout(() => {
@@ -427,7 +394,6 @@
               dniPhoto: formData.playerDniPhotoBase64 || null,
               goles: 0, juegos: 0, amarillas: 0, rojas: 0, faltas: 0
             };
-
             updateDatabase(prev => {
               const divData = prev[selectedDivision.id];
               const updatedTeams = divData.teams.map(t => {
@@ -438,7 +404,6 @@
               });
               return { ...prev, [selectedDivision.id]: { ...divData, teams: updatedTeams } };
             });
-
             setScanState(null);
             setFormData(prev => ({ ...prev, playerName: '', playerDni: '', playerDob: '', playerPhotoBase64: null, playerDniPhotoBase64: null, rosterError: null, isAddingPlayer: false }));
           };
@@ -504,27 +469,6 @@
             });
           };
 
-          const saveDiscipline = () => {
-            if(!formData.disciplineName) return;
-            const newKey = formData.disciplineName.toUpperCase().replace(/\s+/g, '_');
-            setDisciplines(prev => ({
-              ...prev,
-              [newKey]: {
-                title: formData.disciplineName,
-                icon: Trophy,
-                color: "bg-emerald-600",
-                categories: [
-                  { 
-                    id: `${newKey.toLowerCase()}_unico`, 
-                    name: "Divisiones", 
-                    divisions: [{ id: `${newKey.toLowerCase()}_unica`, name: "Única" }] 
-                  }
-                ]
-              }
-            }));
-            closeModal();
-          };
-
           const openModal = (type, initialData = {}) => {
             setModalConfig({ type });
             setFormData(initialData);
@@ -586,13 +530,6 @@
                           </button>
                         );
                       })}
-                      
-                      {isAdmin && (
-                        <button onClick={() => openModal('ADD_DISCIPLINE')} className="group relative flex flex-col items-center justify-center p-6 bg-neutral-50 rounded-2xl shadow-sm border-2 border-dashed border-neutral-300 hover:border-emerald-500 transition-all text-center h-full min-h-[160px]">
-                          <div className="p-3 rounded-full bg-emerald-100 text-emerald-600 mb-3 group-hover:scale-110 transition-transform"><Plus size={28}/></div>
-                          <h3 className="text-xl font-bold text-neutral-600 group-hover:text-emerald-700">Nueva Disciplina</h3>
-                        </button>
-                      )}
                     </div>
                   </div>
                 )}
