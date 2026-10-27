@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FEFUTIN Torneos</title>
+    
+    <!-- Cargamos Tailwind CSS para los estilos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Cargamos FontAwesome para los íconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Cargamos React -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Cargamos Babel para que el navegador entienda nuestro código JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Cargamos Firebase SDKs y tus credenciales -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyDsWHNJw_sd5Gg1LbeYURBlBiix7NOuKYY",
+        authDomain: "fefutin.firebaseapp.com",
+        projectId: "fefutin",
+        storageBucket: "fefutin.firebasestorage.app",
+        messagingSenderId: "27709773699",
+        appId: "1:27709773699:web:79345c6202bce03718c8b6",
+        measurementId: "G-2E04TQJZ0S"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      
+      // Exponemos las funciones de Firebase globalmente para React
+      window.FB_db = db;
+      window.FB_doc = doc;
+      window.FB_setDoc = setDoc;
+      window.FB_onSnapshot = onSnapshot;
+    </script>
+
+    <style>
+        /* Oculta la barra de desplazamiento pero permite hacer scroll */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Mejora la barra de scroll de la lista de equipos */
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        
+        /* Animación para el láser biométrico */
+        @keyframes scan {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        .scanner-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: #4ade80;
+            box-shadow: 0 0 8px #4ade80, 0 0 15px #4ade80;
+            animation: scan 2s ease-in-out infinite;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-neutral-100">
+
+    <!-- Aquí es donde React "dibujará" la aplicación -->
+    <div id="root"></div>
+
+    <!-- Nuestro código de la aplicación -->
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        // --- ADAPTACIÓN DE ÍCONOS PARA HTML ---
+        const Icon = ({ name, size = 24, className = "", type = "fa-solid" }) => (
+          <i className={`${type} fa-${name} ${className}`} style={{ fontSize: size }}></i>
+        );
+        const Trophy = (props) => <Icon name="trophy" {...props} />;
+        const Medal = (props) => <Icon name="medal" {...props} />;
+        const Star = (props) => <Icon name="star" {...props} />;
+        const Users = (props) => <Icon name="users" {...props} />;
+        const ArrowLeft = (props) => <Icon name="arrow-left" {...props} />;
+        const ChevronRight = (props) => <Icon name="chevron-right" {...props} />;
+        const Info = (props) => <Icon name="circle-info" {...props} />;
+        const Shield = (props) => <Icon name="shield-halved" {...props} />;
+        const TableIcon = (props) => <Icon name="table" {...props} />;
+        const CalendarDays = (props) => <Icon name="calendar-days" {...props} />;
+        const Clock = (props) => <Icon name="clock" type="fa-regular" {...props} />;
+        const CheckCircle2 = (props) => <Icon name="circle-check" {...props} />;
+        const Lock = (props) => <Icon name="lock" {...props} />;
+        const Unlock = (props) => <Icon name="unlock" {...props} />;
+        const Plus = (props) => <Icon name="plus" {...props} />;
+        const Edit2 = (props) => <Icon name="pen" {...props} />;
+        const X = (props) => <Icon name="xmark" {...props} />;
+        const Save = (props) => <Icon name="floppy-disk" {...props} />;
+        const Trash2 = (props) => <Icon name="trash" {...props} />;
+        const Shirt = (props) => <Icon name="shirt" {...props} />;
+        const UserPlus = (props) => <Icon name="user-plus" {...props} />;
+        const IdCard = (props) => <Icon name="id-card" type="fa-regular" {...props} />;
+        const Fingerprint = (props) => <Icon name="fingerprint" {...props} />;
+
+        // URL del logo de la liga.
+        const LOGO_URL = "https://yt3.googleusercontent.com/ytc/AIdro_k8JXexJVY6F3O_5kddNVf-HHJ_xnIOV6k1AbexrpaI9g=s900-c-k-c0x00ffffff-no-rj";
+
+        // Estructura de disciplinas (Base)
+        const initialTournamentData = {
+          "FEMENINO": {
+            title: "Femenino", icon: Trophy, color: "bg-amber-500",
+            categories: [
+              { 
+                id: "femenino_unico", 
+                name: "Divisiones", 
+                divisions: [
+                  { id: "fem_sub18", name: "Sub 18" },
+                  { id: "fem_reserva", name: "Reserva" },
+                  { id: "fem_primera", name: "Primera" },
+                  { id: "fem_mas30", name: "+30" }
+                ] 
+              }
+            ]
+          },
+          "SENIOR": { 
+            title: "Senior", icon: Star, color: "bg-neutral-800", 
+            categories: [
+              { id: "senior", name: "Senior", divisions: [{ id: "senior30", name: "Senior +30" }, { id: "senior35", name: "Senior +35" }] },
+              { id: "super_senior", name: "Super Senior", divisions: [{ id: "senior40", name: "Senior +40" }, { id: "senior45", name: "Senior +45" }] }
+            ] 
+          },
+          "MASCULINO": { 
+            title: "Masculino", icon: Users, color: "bg-red-600", 
+            categories: [
+              { 
+                id: "masculino", 
+                name: "Divisiones", 
+                divisions: [
+                  { id: "5ta", name: "5ta" },
+                  { id: "4ta", name: "4ta" },
+                  { id: "3ra", name: "3ra" },
+                  { id: "reserva_masc", name: "Reserva" },
+                  { id: "primera_masc", name: "Primera" }
+                ] 
+              }
+            ] 
+          },
+          "INFANTIL": { title: "Infantil", icon: Medal, color: "bg-blue-600", categories: [] }
+        };
+
+        function App() {
+          // Estado de las disciplinas
+          const [disciplines, setDisciplines] = useState(initialTournamentData);
+
+          // Navegación
+          const [currentView, setCurrentView] = useState('disciplines'); 
+          const [selectedDiscipline, setSelectedDiscipline] = useState(null);
+          const [selectedCategory, setSelectedCategory] = useState(null);
+          const [selectedDivision, setSelectedDivision] = useState(null);
+          const [tournamentTab, setTournamentTab] = useState('posiciones'); 
+          const [selectedRoundId, setSelectedRoundId] = useState(null);
+
+          // Sistema de Administración
+          const [isAdmin, setIsAdmin] = useState(false);
+          const [db, setDb] = useState({}); // Base de datos sincronizada con Firebase
+          
+          // Estado de los Modales
+          const [modalConfig, setModalConfig] = useState(null); 
+          const [formData, setFormData] = useState({});
+          
+          // Estado del Escaneo Biométrico
+          const [scanState, setScanState] = useState(null);
+
+          // ---- SINCRONIZACIÓN EN TIEMPO REAL CON FIREBASE FIRESTORE ----
+          useEffect(() => {
+            if (window.FB_db) {
+              const docRef = window.FB_doc(window.FB_db, "fefutin", "torneos_data");
+              const unsubscribe = window.FB_onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                  setDb(docSnap.data());
+                }
+              });
+              return () => unsubscribe();
+            }
+          }, []);
+
+          // Función para actualizar el estado local y guardarlo automáticamente en la nube
+          const updateDatabase = (updaterFunction) => {
+            setDb(prev => {
+              const newState = typeof updaterFunction === 'function' ? updaterFunction(prev) : updaterFunction;
+              if (window.FB_db) {
+                const docRef = window.FB_doc(window.FB_db, "fefutin", "torneos_data");
+                window.FB_setDoc(docRef, newState).catch(err => console.error("Error al guardar en Firebase: ", err));
+              }
+              return newState;
+            });
+          };
+
+          // ---- LÓGICA DE DATOS ----
+          const currentData = db[selectedDivision?.id] || { teams: [], fixtures: [] };
+
+          const categoryTeams = useMemo(() => {
+            if (!selectedCategory || !selectedCategory.divisions.length) return [];
+            const firstDivId = selectedCategory.divisions[0].id;
+            return db[firstDivId]?.teams || [];
+          }, [db, selectedCategory]);
+
+          const standings = useMemo(() => {
+            let stats = currentData.teams.map(t => ({ ...t, pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 }));
+
+            currentData.fixtures.forEach(f => {
+              f.matches.forEach(m => {
+                if (m.status === 'FINALIZADO') {
+                  let home = stats.find(t => t.name === m.home);
+                  let away = stats.find(t => t.name === m.away);
+                  if (home && away) {
+                    home.pj++; away.pj++;
+                    home.gf += Number(m.homeScore); home.gc += Number(m.awayScore);
+                    away.gf += Number(m.awayScore); away.gc += Number(m.homeScore);
+                    
+                    if (Number(m.homeScore) > Number(m.awayScore)) {
+                      home.pts += 3; home.pg++; away.pp++;
+                    } else if (Number(m.homeScore) < Number(m.awayScore)) {
+                      away.pts += 3; away.pg++; home.pp++;
+                    } else {
+                      home.pts += 1; away.pts += 1; home.pe++; away.pe++;
+                    }
+                  }
+                }
+              });
+            });
+
+            stats.forEach(t => t.dif = t.gf - t.gc);
+            stats.sort((a, b) => b.pts - a.pts || b.dif - a.dif || b.gf - a.gf || a.name.localeCompare(b.name));
+            return stats.map((t, i) => ({ ...t, pos: i + 1 }));
+          }, [currentData]);
+
+          // CÁLCULO DE LA TABLA GENERAL
+          const generalStandings = useMemo(() => {
+            if (!selectedCategory) return [];
+            
+            const globalStats = {};
+
+            selectedCategory.divisions.forEach(div => {
+              const divData = db[div.id] || { teams: [], fixtures: [] };
+              
+              divData.teams.forEach(team => {
+                const teamNameUpper = team.name.toUpperCase();
+                if (!globalStats[teamNameUpper]) {
+                  globalStats[teamNameUpper] = { id: team.id, name: team.name, logo: team.logo, pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+                }
+              });
+
+              divData.fixtures.forEach(f => {
+                f.matches.forEach(m => {
+                  if (m.status === 'FINALIZADO') {
+                    let homeName = m.home.toUpperCase();
+                    let awayName = m.away.toUpperCase();
+                    
+                    if (globalStats[homeName] && globalStats[awayName]) {
+                      globalStats[homeName].pj++; 
+                      globalStats[awayName].pj++;
+                      globalStats[homeName].gf += Number(m.homeScore); 
+                      globalStats[homeName].gc += Number(m.awayScore);
+                      globalStats[awayName].gf += Number(m.awayScore); 
+                      globalStats[awayName].gc += Number(m.homeScore);
+                      
+                      if (Number(m.homeScore) > Number(m.awayScore)) {
+                        globalStats[homeName].pts += 3; globalStats[homeName].pg++; globalStats[awayName].pp++;
+                      } else if (Number(m.homeScore) < Number(m.awayScore)) {
+                        globalStats[awayName].pts += 3; globalStats[awayName].pg++; globalStats[homeName].pp++;
+                      } else {
+                        globalStats[homeName].pts += 1; globalStats[awayName].pts += 1; globalStats[homeName].pe++; globalStats[awayName].pe++;
+                      }
+                    }
+                  }
+                });
+              });
+            });
+
+            const statsArray = Object.values(globalStats);
+            statsArray.forEach(t => t.dif = t.gf - t.gc);
+            statsArray.sort((a, b) => b.pts - a.pts || b.dif - a.dif || b.gf - a.gf || a.name.localeCompare(b.name));
+            return statsArray.map((t, i) => ({ ...t, pos: i + 1 }));
+          }, [db, selectedCategory]);
+
+          const modalTeam = useMemo(() => {
+            if (modalConfig?.type === 'ROSTER' && selectedDivision) {
+              return db[selectedDivision.id]?.teams.find(t => t.id === formData.teamId) || null;
+            }
+            return null;
+          }, [db, modalConfig, selectedDivision, formData.teamId]);
+
+          const teamMatches = useMemo(() => {
+            if (!modalTeam) return [];
+            return currentData.fixtures.flatMap(f => 
+              f.matches
+               .filter(m => m.home === modalTeam.name || m.away === modalTeam.name)
+               .map(m => ({...m, round: f.round}))
+            );
+          }, [currentData.fixtures, modalTeam]);
+
+          // --- MANEJO DE IMÁGENES LOCALES ---
+          const handlePhotoUpload = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setFormData(prev => ({ ...prev, playerPhotoBase64: reader.result }));
+                };
+                reader.readAsDataURL(file);
+            }
+          };
+
+          const handleDniPhotoUpload = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setFormData(prev => ({ ...prev, playerDniPhotoBase64: reader.result }));
+                };
+                reader.readAsDataURL(file);
+            }
+          };
+
+          const handleTeamPhotoUpload = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setFormData(prev => ({ ...prev, teamPhotoBase64: reader.result }));
+                };
+                reader.readAsDataURL(file);
+            }
+          };
+
+          // ---- FUNCIONES DE GUARDADO (CON FIREBASE) ----
+          const saveTeam = () => {
+            if(!formData.name) return;
+            
+            const newTeamName = formData.name;
+            const newTeamLogo = formData.teamPhotoBase64 || `https://ui-avatars.com/api/?name=${formData.name.substring(0,2)}&background=random&color=fff`;
+
+            updateDatabase(prev => {
+              const newState = { ...prev };
+              selectedCategory.divisions.forEach(div => {
+                const divData = newState[div.id] || { teams: [], fixtures: [] };
+                if (!divData.teams.some(t => t.name.toLowerCase() === newTeamName.toLowerCase())) {
+                  newState[div.id] = {
+                    ...divData,
+                    teams: [
+                      ...divData.teams, 
+                      { id: `${Date.now()}-${div.id}`, name: newTeamName, logo: newTeamLogo, coach: '', players: [] } 
+                    ]
+                  };
+                }
+              });
+              return newState;
+            });
+            setFormData({ name: '', teamPhotoBase64: null });
+          };
+
+          const saveFecha = () => {
+            if(!formData.round) return;
+            const newFecha = { id: `f${Date.now()}`, round: formData.round, matches: [] };
+            updateDatabase(prev => {
+              const divData = prev[selectedDivision.id] || { teams: [], fixtures: [] };
+              return { ...prev, [selectedDivision.id]: { ...divData, fixtures: [...divData.fixtures, newFecha] } };
+            });
+            setSelectedRoundId(newFecha.id);
+            closeModal();
+          };
+
+          const saveMatch = () => {
+            if(!formData.home || !formData.away) return;
+            const homeTeam = currentData.teams.find(t => t.id === formData.home);
+            const awayTeam = currentData.teams.find(t => t.id === formData.away);
+            
+            const newMatch = {
+              id: Date.now(), home: homeTeam.name, away: awayTeam.name,
+              homeLogo: homeTeam.logo, awayLogo: awayTeam.logo,
+              date: formData.date || "Por definir", status: "PROGRAMADO"
+            };
+
+            updateDatabase(prev => {
+              const divData = prev[selectedDivision.id];
+              const updatedFixtures = divData.fixtures.map(f => 
+                f.id === formData.roundId ? { ...f, matches: [...f.matches, newMatch] } : f
+              );
+              return { ...prev, [selectedDivision.id]: { ...divData, fixtures: updatedFixtures } };
+            });
+            closeModal();
+          };
+
+          const saveResult = () => {
+            updateDatabase(prev => {
+              const divData = prev[selectedDivision.id];
+              const updatedFixtures = divData.fixtures.map(f => {
+                if(f.id === formData.roundId) {
+                  const updatedMatches = f.matches.map(m => 
+                    m.id === formData.matchId 
+                      ? { ...m, homeScore: formData.homeScore, awayScore: formData.awayScore, status: "FINALIZADO" } 
+                      : m
+                  );
+                  return { ...f, matches: updatedMatches };
+                }
+                return f;
+              });
+              return { ...prev, [selectedDivision.id]: { ...divData, fixtures: updatedFixtures } };
+            });
+            closeModal();
+          };
+
+          const savePlayer = () => {
+            if(!formData.playerName || !formData.playerDni || !formData.playerDob) {
+              setFormData(prev => ({...prev, rosterError: "Completa Nombre, DNI y Fecha de Nacimiento."}));
+              return;
+            }
+
+            if (formData.playerPhotoBase64 && formData.playerDniPhotoBase64 && !scanState) {
+                setScanState('scanning');
+                setTimeout(() => {
+                    setScanState('success');
+                    setTimeout(() => {
+                        executeSavePlayer();
+                    }, 1500);
+                }, 2500);
+                return;
+            }
+
+            executeSavePlayer();
+          };
+
+          const executeSavePlayer = () => {
+            const newPlayer = {
+              id: Date.now(),
+              name: formData.playerName,
+              dni: formData.playerDni,
+              dob: formData.playerDob,
+              photo: formData.playerPhotoBase64 || `https://ui-avatars.com/api/?name=${formData.playerName.substring(0,2)}&background=f3f4f6&color=153465`,
+              dniPhoto: formData.playerDniPhotoBase64 || null,
+              goles: 0, juegos: 0, amarillas: 0, rojas: 0, faltas: 0
+            };
+
+            updateDatabase(prev => {
+              const divData = prev[selectedDivision.id];
+              const updatedTeams = divData.teams.map(t => {
+                if (t.id === formData.teamId) {
+                  return { ...t, players: [...(t.players || []), newPlayer] };
+                }
+                return t;
+              });
+              return { ...prev, [selectedDivision.id]: { ...divData, teams: updatedTeams } };
+            });
+
+            setScanState(null);
+            setFormData(prev => ({ ...prev, playerName: '', playerDni: '', playerDob: '', playerPhotoBase64: null, playerDniPhotoBase64: null, rosterError: null, isAddingPlayer: false }));
+          };
+
+          const updateCoach = (newCoach) => {
+            updateDatabase(prev => {
+              const divData = prev[selectedDivision.id];
+              const updatedTeams = divData.teams.map(t => {
+                if (t.id === formData.teamId) {
+                  return { ...t, coach: newCoach };
+                }
+                return t;
+              });
+              return { ...prev, [selectedDivision.id]: { ...divData, teams: updatedTeams } };
+            });
+          };
+
+          // --- FUNCIONES DE ELIMINACIÓN ---
+          const executeDeleteTeam = (teamName) => {
+            updateDatabase(prev => {
+              const newState = { ...prev };
+              selectedCategory.divisions.forEach(div => {
+                if (newState[div.id]) {
+                  newState[div.id] = {
+                    ...newState[div.id],
+                    teams: newState[div.id].teams.filter(t => t.name !== teamName)
+                  };
+                }
+              });
+              return newState;
+            });
+          };
+
+          const executeDeleteFecha = () => {
+            updateDatabase(prev => {
+              const divData = prev[selectedDivision.id];
+              return { ...prev, [selectedDivision.id]: { ...divData, fixtures: divData.fixtures.filter(f => f.id !== formData.roundId) } };
+            });
+            if (selectedRoundId === formData.roundId) setSelectedRoundId(null);
+            closeModal();
+          };
+
+          const executeDeleteMatch = () => {
+            updateDatabase(prev => {
+              const divData = prev[selectedDivision.id];
+              const updatedFixtures = divData.fixtures.map(f => 
+                f.id === formData.roundId ? { ...f, matches: f.matches.filter(m => m.id !== formData.matchId) } : f
+              );
+              return { ...prev, [selectedDivision.id]: { ...divData, fixtures: updatedFixtures } };
+            });
+            closeModal();
+          };
+
+          const executeDeletePlayer = (playerId) => {
+            updateDatabase(prev => {
+              const divData = prev[selectedDivision.id];
+              const updatedTeams = divData.teams.map(t => {
+                if (t.id === formData.teamId) {
+                  return { ...t, players: t.players.filter(p => p.id !== playerId) };
+                }
+                return t;
+              });
+              return { ...prev, [selectedDivision.id]: { ...divData, teams: updatedTeams } };
+            });
+          };
+
+          const saveDiscipline = () => {
+            if(!formData.disciplineName) return;
+            const newKey = formData.disciplineName.toUpperCase().replace(/\s+/g, '_');
+            setDisciplines(prev => ({
+              ...prev,
+              [newKey]: {
+                title: formData.disciplineName,
+                icon: Trophy,
+                color: "bg-emerald-600",
+                categories: [
+                  { 
+                    id: `${newKey.toLowerCase()}_unico`, 
+                    name: "Divisiones", 
+                    divisions: [{ id: `${newKey.toLowerCase()}_unica`, name: "Única" }] 
+                  }
+                ]
+              }
+            }));
+            closeModal();
+          };
+
+          const openModal = (type, initialData = {}) => {
+            setModalConfig({ type });
+            setFormData(initialData);
+          };
+          const closeModal = () => { setModalConfig(null); setFormData({}); };
+
+          const handleSelectDivision = (division) => {
+            setSelectedDivision(division);
+            setCurrentView('tournament');
+            setTournamentTab('posiciones');
+            const divData = db[division.id];
+            setSelectedRoundId(divData?.fixtures?.[0]?.id || null);
+          };
+
+          return (
+            <div className="min-h-screen bg-neutral-100 font-sans text-neutral-900 pb-20">
+              
+              {/* Header Principal */}
+              <header className="bg-black text-white shadow-md sticky top-0 z-20 border-b-2 border-red-600">
+                <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <img src={LOGO_URL} alt="Logo" className="w-12 h-12 rounded-full object-cover border-2 border-white bg-white" />
+                    <h1 className="text-2xl font-black tracking-wider uppercase text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-400">FEFUTIN</h1>
+                  </div>
+                  {/* BOTÓN MODO ADMIN */}
+                  <button 
+                    onClick={() => setIsAdmin(!isAdmin)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-colors border ${isAdmin ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-neutral-900 border-neutral-700 text-neutral-400 hover:text-white'}`}
+                  >
+                    {isAdmin ? <Unlock size={14} /> : <Lock size={14} />}
+                    {isAdmin ? 'ADMIN ACTIVADO' : 'MODO ADMIN'}
+                  </button>
+                </div>
+              </header>
+
+              {/* Contenido Principal */}
+              <main className="max-w-4xl mx-auto px-4 py-8">
+                
+                {/* 1. SELECCIÓN DE DISCIPLINA */}
+                {currentView === 'disciplines' && (
+                  <div className="animate-in fade-in duration-500">
+                    <div className="mb-8 text-center">
+                      <h2 className="text-3xl font-bold mb-2">Selecciona una Disciplina</h2>
+                      <p className="text-neutral-500">Elige la categoría principal para ver sus zonas y torneos.</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {Object.entries(disciplines).map(([key, data]) => {
+                        const IconElement = data.icon;
+                        return (
+                          <button key={key} onClick={() => { 
+                            setSelectedDiscipline(key); 
+                            if (data.categories.length === 1) {
+                              setSelectedCategory(data.categories[0]);
+                              setCurrentView('divisions');
+                            } else {
+                              setCurrentView('categories'); 
+                            }
+                          }} className="group relative flex flex-col p-6 bg-white rounded-2xl shadow-sm border border-neutral-200 hover:border-red-600 transition-all text-left overflow-hidden">
+                            <div className={`absolute -right-12 -top-12 w-32 h-32 rounded-full opacity-10 transition-transform group-hover:scale-150 ${data.color}`}></div>
+                            <div className="flex items-center justify-between mb-4 relative z-10">
+                              <div className={`p-3 rounded-xl text-white shadow-md ${data.color}`}><IconElement size={28} /></div>
+                              <ChevronRight className="text-neutral-300 group-hover:text-red-600" size={24} />
+                            </div>
+                            <h3 className="text-xl font-bold mb-1 relative z-10">{data.title}</h3>
+                            <p className="text-neutral-500 text-sm relative z-10">{data.description}</p>
+                          </button>
+                        );
+                      })}
+                      
+                      {isAdmin && (
+                        <button onClick={() => openModal('ADD_DISCIPLINE')} className="group relative flex flex-col items-center justify-center p-6 bg-neutral-50 rounded-2xl shadow-sm border-2 border-dashed border-neutral-300 hover:border-emerald-500 transition-all text-center h-full min-h-[160px]">
+                          <div className="p-3 rounded-full bg-emerald-100 text-emerald-600 mb-3 group-hover:scale-110 transition-transform"><Plus size={28}/></div>
+                          <h3 className="text-xl font-bold text-neutral-600 group-hover:text-emerald-700">Nueva Disciplina</h3>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. SELECCIÓN DE CATEGORÍA / ZONA */}
+                {currentView === 'categories' && selectedDiscipline && (
+                  <div className="animate-in fade-in slide-in-from-right-8 duration-300">
+                    <button onClick={() => setCurrentView('disciplines')} className="flex items-center gap-2 text-neutral-500 hover:text-red-600 font-medium mb-6 px-2 py-1 -ml-2 rounded-lg hover:bg-neutral-200">
+                      <ArrowLeft size={20} /> Volver a Disciplinas
+                    </button>
+                    <div className="bg-white rounded-3xl p-8 shadow-sm border border-neutral-200">
+                      <div className="flex items-center gap-4 mb-8 pb-6 border-b border-neutral-100">
+                        <div className={`p-4 rounded-2xl text-white shadow-lg ${disciplines[selectedDiscipline].color}`}>
+                          {React.createElement(disciplines[selectedDiscipline].icon, { size: 32 })}
+                        </div>
+                        <div>
+                          <h2 className="text-3xl font-black uppercase">{disciplines[selectedDiscipline].title}</h2>
+                          <p className="text-neutral-500 mt-1">Selecciona una zona</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {disciplines[selectedDiscipline].categories.map((cat) => (
+                          <button key={cat.id} onClick={() => { setSelectedCategory(cat); setCurrentView('divisions'); }} className="flex items-center justify-between p-5 bg-neutral-50 rounded-2xl border border-neutral-200 hover:border-red-500 hover:bg-red-50 group text-left">
+                            <div className="flex items-center gap-4">
+                              <div className="p-2 rounded-lg bg-white shadow-sm border text-neutral-600 group-hover:text-red-600"><Shield size={24} /></div>
+                              <div>
+                                <h3 className="text-lg font-bold group-hover:text-red-700">{cat.name}</h3>
+                                <p className="text-sm text-neutral-500">{cat.divisions.length} divisiones</p>
+                              </div>
+                            </div>
+                            <ChevronRight className="text-neutral-300 group-hover:text-red-500" size={20} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. SELECCIÓN DE DIVISIÓN */}
+                {currentView === 'divisions' && selectedCategory && (
+                  <div className="animate-in fade-in slide-in-from-right-8 duration-300">
+                    <button onClick={() => {
+                      if (disciplines[selectedDiscipline].categories.length === 1) {
+                        setSelectedDiscipline(null);
+                        setSelectedCategory(null);
+                        setCurrentView('disciplines');
+                      } else {
+                        setCurrentView('categories');
+                      }
+                    }} className="flex items-center gap-2 text-neutral-500 hover:text-red-600 font-medium mb-6 px-2 py-1 -ml-2 rounded-lg hover:bg-neutral-200">
+                      <ArrowLeft size={20} /> Volver a {disciplines[selectedDiscipline].categories.length === 1 ? 'Disciplinas' : 'Zonas'}
+                    </button>
+                    <div className="bg-white rounded-3xl p-8 shadow-sm border border-neutral-200">
+                      <div className="flex items-center gap-4 mb-8 pb-6 border-b border-neutral-100">
+                        <div className="p-4 rounded-2xl bg-neutral-100 text-neutral-800 shadow-inner border border-neutral-200"><Shield size={32} className="text-red-600" /></div>
+                        <div>
+                          <h2 className="text-3xl font-black uppercase">{disciplines[selectedDiscipline].categories.length === 1 ? disciplines[selectedDiscipline].title : selectedCategory.name}</h2>
+                          <p className="text-neutral-500 mt-1">{disciplines[selectedDiscipline].categories.length === 1 ? 'Selecciona una división' : `Disciplina: ${disciplines[selectedDiscipline].title}`}</p>
+                        </div>
+                      </div>
+
+                      {isAdmin && selectedCategory.divisions.length > 0 && (
+                        <button onClick={() => openModal('MANAGE_TEAMS')} className="mb-8 w-full py-4 border-2 border-dashed border-red-300 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 font-bold flex items-center justify-center gap-2 transition-colors">
+                          <Users size={20} /> Gestionar Equipos de {disciplines[selectedDiscipline].categories.length === 1 ? disciplines[selectedDiscipline].title : selectedCategory.name}
+                        </button>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        <button onClick={() => setCurrentView('general_table')} className="col-span-1 sm:col-span-2 md:col-span-3 mb-2 flex flex-col items-center justify-center p-6 bg-gradient-to-r from-[#153465] to-[#0a182e] text-white rounded-2xl border-2 border-[#153465] hover:border-[#fbd535] hover:shadow-[0_0_20px_rgba(251,213,53,0.3)] group text-center transition-all overflow-hidden relative">
+                           <div className="absolute top-0 right-0 w-48 h-48 bg-[#fbd535] opacity-5 rounded-full transform translate-x-12 -translate-y-12 group-hover:scale-125 transition-transform duration-700"></div>
+                           <div className="p-3 rounded-full bg-white/10 shadow-inner border border-white/20 text-[#fbd535] group-hover:scale-110 transition-transform mb-3 relative z-10"><TableIcon size={26} /></div>
+                           <h3 className="text-xl font-black uppercase tracking-widest text-white relative z-10">Tabla General de Clubes</h3>
+                           <p className="text-neutral-400 text-[10px] font-bold uppercase mt-1 tracking-widest relative z-10">Sumatoria de puntos de todas las divisiones</p>
+                        </button>
+
+                        {selectedCategory.divisions.map((division) => (
+                          <button key={division.id} onClick={() => handleSelectDivision(division)} className="flex flex-col items-center justify-center p-6 bg-neutral-50 rounded-2xl border border-neutral-200 hover:border-red-500 hover:bg-red-50 group text-center">
+                            <div className="p-4 rounded-full bg-white shadow-sm border text-neutral-600 group-hover:text-red-600 mb-3"><Trophy size={28} /></div>
+                            <h3 className="text-xl font-bold group-hover:text-red-700">{division.name}</h3>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* VISTA: TABLA GENERAL */}
+                {currentView === 'general_table' && selectedCategory && (
+                  <div className="animate-in fade-in slide-in-from-right-8 duration-300">
+                    <button onClick={() => setCurrentView('divisions')} className="flex items-center gap-2 text-neutral-500 hover:text-red-600 font-medium mb-6 px-2 py-1 -ml-2 rounded-lg hover:bg-neutral-200">
+                      <ArrowLeft size={20} /> Volver a {disciplines[selectedDiscipline].categories.length === 1 ? 'Disciplinas' : 'Divisiones'}
+                    </button>
+
+                    <div className="bg-[#153465] text-white rounded-t-3xl p-6 shadow-sm border border-[#0a182e] border-b-0 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full transform translate-x-16 -translate-y-16"></div>
+                      <div className="text-xs font-bold text-[#fbd535] mb-2 tracking-widest uppercase relative z-10">
+                        {disciplines[selectedDiscipline].title} {disciplines[selectedDiscipline].categories.length > 1 && `> ${selectedCategory.name}`}
+                      </div>
+                      <h2 className="text-3xl font-black uppercase flex items-center gap-3 relative z-10">
+                        <TableIcon className="text-[#fbd535]" size={36} /> TABLA GENERAL
+                      </h2>
+                      <p className="text-sm text-neutral-300 mt-3 font-medium relative z-10 max-w-2xl">
+                        Acumulado global que suma los puntos, goles y desempeño general del club en todas las divisiones conjuntas de esta categoría.
+                      </p>
+                    </div>
+
+                    <div className="bg-white rounded-b-3xl p-6 shadow-sm border border-neutral-200 border-t-0">
+                        {(!generalStandings || generalStandings.length === 0) ? (
+                          <div className="text-center py-10 text-neutral-400 font-bold uppercase tracking-wider flex flex-col items-center justify-center gap-3">
+                            <TableIcon size={48} className="opacity-20"/>
+                            No hay estadísticas generales disponibles aún.
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto scrollbar-thin pb-4">
+                            <table className="w-full text-left border-collapse min-w-[600px]">
+                              <thead>
+                                <tr className="bg-neutral-900 text-white text-sm uppercase tracking-wider">
+                                  <th className="p-4 rounded-tl-xl font-bold text-center w-12">#</th>
+                                  <th className="p-4 font-bold">Club</th>
+                                  <th className="p-4 font-black text-center text-[#fbd535]">Pts</th>
+                                  <th className="p-4 font-bold text-center">PJ</th>
+                                  <th className="p-4 font-bold text-center">PG</th>
+                                  <th className="p-4 font-bold text-center">PE</th>
+                                  <th className="p-4 font-bold text-center">PP</th>
+                                  <th className="p-4 font-bold text-center">GF</th>
+                                  <th className="p-4 font-bold text-center">GC</th>
+                                  <th className="p-4 font-bold text-center rounded-tr-xl text-[#fbd535]">DIF</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-neutral-100">
+                                {generalStandings.map((club, index) => (
+                                  <tr key={club.id} className="hover:bg-neutral-50 transition-colors group">
+                                    <td className="p-4 text-center font-bold text-neutral-500">
+                                      {index === 0 ? <span className="w-7 h-7 rounded-full bg-[#fbd535] text-neutral-900 flex items-center justify-center mx-auto text-xs shadow-sm shadow-amber-200">1</span> : club.pos}
+                                    </td>
+                                    <td className="p-4 font-black text-[#153465]">
+                                      <div className="flex items-center gap-3">
+                                        <img src={club.logo} alt="" className="w-10 h-10 rounded-full border border-neutral-200 object-cover shadow-sm bg-white"/>
+                                        <span className="uppercase tracking-tight group-hover:text-blue-600 transition-colors">{club.name}</span>
+                                      </div>
+                                    </td>
+                                    <td className="p-4 text-center font-black text-2xl text-red-600">{club.pts}</td>
+                                    <td className="p-4 text-center text-neutral-600 font-bold">{club.pj}</td>
+                                    <td className="p-4 text-center text-neutral-600">{club.pg}</td>
+                                    <td className="p-4 text-center text-neutral-600">{club.pe}</td>
+                                    <td className="p-4 text-center text-neutral-600">{club.pp}</td>
+                                    <td className="p-4 text-center text-neutral-500">{club.gf}</td>
+                                    <td className="p-4 text-center text-neutral-500">{club.gc}</td>
+                                    <td className="p-4 text-center font-black text-neutral-700">{club.dif > 0 ? `+${club.dif}` : club.dif}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. TORNEO (TABLAS Y FECHAS INDIVIDUALES) */}
+                {currentView === 'tournament' && selectedDivision && (
+                  <div className="animate-in fade-in slide-in-from-right-8 duration-300">
+                    <button onClick={() => setCurrentView('divisions')} className="flex items-center gap-2 text-neutral-500 hover:text-red-600 font-medium mb-6 px-2 py-1 -ml-2 rounded-lg hover:bg-neutral-200">
+                      <ArrowLeft size={20} /> Volver a Divisiones
+                    </button>
+
+                    <div className="bg-white rounded-t-3xl p-6 shadow-sm border border-neutral-200 border-b-0">
+                      <div className="text-sm font-bold text-red-600 mb-2 tracking-wide uppercase">
+                        {disciplines[selectedDiscipline].title}
+                        {disciplines[selectedDiscipline].categories.length > 1 && ` > ${selectedCategory.name}`}
+                      </div>
+                      <h2 className="text-3xl font-black uppercase flex items-center gap-3"><Trophy className="text-amber-500" size={36} /> División {selectedDivision.name}</h2>
+                    </div>
+
+                    <div className="bg-white border-x border-neutral-200 px-6">
+                      <div className="flex border-b border-neutral-200">
+                        <button onClick={() => setTournamentTab('posiciones')} className={`flex items-center gap-2 px-6 py-4 font-bold border-b-2 ${tournamentTab === 'posiciones' ? 'border-red-600 text-red-600' : 'border-transparent text-neutral-500'}`}><TableIcon size={20} /> Posiciones</button>
+                        <button onClick={() => setTournamentTab('fechas')} className={`flex items-center gap-2 px-6 py-4 font-bold border-b-2 ${tournamentTab === 'fechas' ? 'border-red-600 text-red-600' : 'border-transparent text-neutral-500'}`}><CalendarDays size={20} /> Fechas y Resultados</button>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-b-3xl p-6 shadow-sm border border-neutral-200 border-t-0">
+                      
+                      {tournamentTab === 'posiciones' && (
+                        <div className="animate-in fade-in duration-300">
+                          {standings.length === 0 ? (
+                            <div className="text-center py-8 text-neutral-500 font-medium">No hay equipos en esta división aún.</div>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="bg-neutral-100 text-neutral-600 text-sm uppercase tracking-wider">
+                                    <th className="p-4 rounded-tl-xl font-bold text-center w-12">#</th>
+                                    <th className="p-4 font-bold">Equipo <span className="text-[10px] text-neutral-400 font-normal ml-2 normal-case hidden sm:inline">(Click para ver plantel)</span></th>
+                                    <th className="p-4 font-black text-center">Pts</th>
+                                    <th className="p-4 font-bold text-center">PJ</th>
+                                    <th className="p-4 font-bold text-center hidden sm:table-cell">PG</th>
+                                    <th className="p-4 font-bold text-center hidden sm:table-cell">PE</th>
+                                    <th className="p-4 font-bold text-center hidden sm:table-cell">PP</th>
+                                    <th className="p-4 font-bold text-center hidden md:table-cell">GF</th>
+                                    <th className="p-4 font-bold text-center hidden md:table-cell">GC</th>
+                                    <th className="p-4 font-bold text-center rounded-tr-xl">DIF</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-neutral-100">
+                                  {standings.map((team, index) => (
+                                    <tr key={team.id} className="hover:bg-neutral-50 transition-colors">
+                                      <td className="p-4 text-center font-bold text-neutral-500">
+                                        {index === 0 ? <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-xs">1</span> : team.pos}
+                                      </td>
+                                      <td 
+                                        className="p-4 font-bold text-neutral-800 cursor-pointer group"
+                                        onClick={() => openModal('ROSTER', { teamId: team.id, rosterTab: 'jugadores' })}
+                                        title="Ver plantel"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <img src={team.logo} alt="" className="w-8 h-8 rounded-full border border-neutral-200 object-cover group-hover:border-blue-500 transition-colors"/>
+                                          <span className="group-hover:text-blue-600 transition-colors">{team.name}</span>
+                                          <Shirt size={14} className="text-neutral-300 group-hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100" />
+                                        </div>
+                                      </td>
+                                      <td className="p-4 text-center font-black text-lg text-red-600">{team.pts}</td>
+                                      <td className="p-4 text-center text-neutral-600">{team.pj}</td>
+                                      <td className="p-4 text-center text-neutral-600 hidden sm:table-cell">{team.pg}</td>
+                                      <td className="p-4 text-center text-neutral-600 hidden sm:table-cell">{team.pe}</td>
+                                      <td className="p-4 text-center text-neutral-600 hidden sm:table-cell">{team.pp}</td>
+                                      <td className="p-4 text-center text-neutral-500 hidden md:table-cell">{team.gf}</td>
+                                      <td className="p-4 text-center text-neutral-500 hidden md:table-cell">{team.gc}</td>
+                                      <td className="p-4 text-center font-bold text-neutral-700">{team.dif > 0 ? `+${team.dif}` : team.dif}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {tournamentTab === 'fechas' && (
+                        <div className="animate-in fade-in duration-300 bg-[#f8f9fa] -mx-6 p-4 sm:p-6 pb-12 rounded-b-3xl">
+                          
+                          <div className="flex items-center gap-3 overflow-x-auto pb-4 mb-2 scrollbar-hide">
+                            {currentData.fixtures.map(fecha => (
+                              <button key={fecha.id} onClick={() => setSelectedRoundId(fecha.id)} className={`flex-shrink-0 px-5 py-2 rounded-full font-bold transition-all ${selectedRoundId === fecha.id ? 'bg-white text-neutral-800 shadow-sm border-b-2 border-neutral-200' : 'text-neutral-500 hover:text-neutral-800'}`}>
+                                {fecha.round}
+                              </button>
+                            ))}
+                            {isAdmin && (
+                              <button onClick={() => openModal('FECHA')} className="flex-shrink-0 px-4 py-2 rounded-full font-bold bg-neutral-200 text-neutral-600 hover:bg-neutral-300 flex items-center gap-1">
+                                <Plus size={16}/> Nueva Fecha
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="inline-block bg-[#efe366] text-neutral-700 font-bold text-sm px-4 py-1.5 rounded-r-full -ml-4 sm:-ml-6 shadow-sm border border-[#e5d85c]">
+                               Estadísticas de la fecha
+                            </div>
+                            {isAdmin && selectedRoundId && (
+                              <button onClick={() => openModal('DELETE_FECHA', { roundId: selectedRoundId, roundName: currentData.fixtures.find(f => f.id === selectedRoundId)?.round })} className="text-neutral-400 hover:text-red-600 flex items-center gap-1 text-sm font-bold transition-colors">
+                                <Trash2 size={16}/> Borrar Fecha
+                              </button>
+                            )}
+                          </div>
+
+                          {currentData.fixtures.find(f => f.id === selectedRoundId) && (
+                            <div className="max-w-xl mx-auto space-y-2 relative">
+                              
+                              {isAdmin && currentData.teams.length >= 2 && (
+                                <button onClick={() => openModal('MATCH', { roundId: selectedRoundId })} className="absolute -top-14 right-0 px-4 py-2 bg-red-600 text-white rounded-full text-sm font-bold shadow-sm hover:bg-red-700 flex items-center gap-2">
+                                  <Plus size={16}/> Partido
+                                </button>
+                              )}
+
+                              {currentData.fixtures.find(f => f.id === selectedRoundId).matches.length === 0 ? (
+                                <div className="text-center py-8 text-neutral-500 font-medium">Aún no hay partidos programados para esta fecha.</div>
+                              ) : (
+                                currentData.fixtures.find(f => f.id === selectedRoundId).matches.map((match, idx, arr) => (
+                                  <React.Fragment key={match.id}>
+                                    <div className="relative bg-white rounded-[2rem] p-5 shadow-sm border border-neutral-200 flex items-center justify-between mt-8 group">
+                                        
+                                        {isAdmin && (
+                                          <>
+                                            <button onClick={() => openModal('DELETE_MATCH', { matchId: match.id, roundId: selectedRoundId, matchName: `${match.home} vs ${match.away}` })} className="absolute -left-2 -top-2 p-2 bg-white border border-neutral-200 text-neutral-400 rounded-full shadow-sm hover:text-red-600 hover:border-red-200 transition-colors z-10">
+                                              <Trash2 size={16} />
+                                            </button>
+                                            <button onClick={() => openModal('RESULT', { matchId: match.id, roundId: selectedRoundId, homeScore: match.homeScore || 0, awayScore: match.awayScore || 0 })} className="absolute -right-2 -top-2 p-2 bg-neutral-800 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors z-10">
+                                              <Edit2 size={16} />
+                                            </button>
+                                          </>
+                                        )}
+
+                                        <div className={`absolute -top-3 left-1/2 -translate-x-1/2 text-white text-[10px] font-black px-4 py-1 rounded shadow-sm uppercase tracking-wider ${match.status === 'FINALIZADO' ? 'bg-[#ff0055]' : 'bg-neutral-500'}`}>
+                                          {match.status}
+                                        </div>
+
+                                        <div className="flex flex-col items-center w-[30%]">
+                                          <img src={match.homeLogo} alt="" className="w-16 h-16 rounded-full mb-3 shadow-sm border object-cover" />
+                                          <span className="text-[11px] text-center uppercase font-bold text-neutral-600 leading-tight">{match.home}</span>
+                                        </div>
+
+                                        <div className="flex items-center justify-center w-[40%] gap-4">
+                                          {match.status === 'FINALIZADO' ? (
+                                            <>
+                                              <span className="text-5xl font-light text-[#2b2d42]">{match.homeScore}</span>
+                                              <div className="flex flex-col gap-2">
+                                                <span className="w-2 h-2 bg-neutral-300 rounded-full"></span>
+                                                <span className="w-2 h-2 bg-neutral-300 rounded-full"></span>
+                                              </div>
+                                              <span className="text-5xl font-light text-[#2b2d42]">{match.awayScore}</span>
+                                            </>
+                                          ) : (
+                                            <span className="text-sm font-bold text-neutral-500 text-center bg-neutral-100 px-3 py-1 rounded-lg">{match.date}</span>
+                                          )}
+                                        </div>
+
+                                        <div className="flex flex-col items-center w-[30%]">
+                                          <img src={match.awayLogo} alt="" className="w-16 h-16 rounded-full mb-3 shadow-sm border object-cover" />
+                                          <span className="text-[11px] text-center uppercase font-bold text-neutral-600 leading-tight">{match.away}</span>
+                                        </div>
+                                    </div>
+                                    {idx < arr.length - 1 && <div className="border-t-4 border-dashed border-neutral-300 opacity-60 my-6 mx-4"></div>}
+                                  </React.Fragment>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </main>
+
+              {/* --- MODALES Y PANTALLAS SUPERPUESTAS --- */}
+              {modalConfig && (
+                <div className={`fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 animate-in fade-in ${modalConfig.type === 'ROSTER' || modalConfig.type === 'PLAYER_CARD' ? 'bg-black/80' : 'bg-black/60'}`}>
+                  
+                  {/* --- PANTALLA CARNET DEL JUGADOR/A --- */}
+                  {modalConfig.type === 'PLAYER_CARD' && formData.player && (
+                    <div className="w-full h-full max-w-lg mx-auto flex flex-col justify-center relative animate-in slide-in-from-bottom-4 p-4 overflow-y-auto scrollbar-hide">
+                      <button onClick={() => openModal('ROSTER', { teamId: formData.team.id, rosterTab: 'jugadores' })} className="absolute top-4 right-4 sm:top-8 sm:right-8 p-2 text-white hover:text-red-500 z-50 transition-colors bg-black/50 rounded-full backdrop-blur-sm shadow-lg border border-white/10">
+                        <X size={20}/>
+                      </button>
+
+                      <div className="w-full bg-neutral-900 rounded-3xl overflow-hidden flex relative shadow-[0_20px_50px_rgba(0,0,0,0.7)] border-2 border-neutral-800 flex-shrink-0 min-h-[220px] sm:min-h-[260px]">
+                        <div className="absolute top-0 right-0 w-[65%] h-full bg-red-600 transform skew-x-[-15deg] translate-x-8 sm:translate-x-12 z-0 shadow-[-10px_0_30px_rgba(220,38,38,0.4)]"></div>
+                        <div className="absolute top-0 right-0 w-[65%] h-full opacity-20 transform skew-x-[-15deg] translate-x-8 sm:translate-x-12 z-0" style={{backgroundImage: 'radial-gradient(circle, #000 2px, transparent 2px)', backgroundSize: '12px 12px'}}></div>
+
+                        <div className="relative z-10 w-[38%] flex flex-col items-center justify-center p-3 sm:p-4 border-r border-white/10">
+                            <div className="relative">
+                                <img src={formData.player.photo} className="w-24 h-28 sm:w-32 sm:h-36 rounded-2xl object-cover border-4 border-neutral-900 shadow-xl bg-neutral-200" />
+                                <div className="absolute -bottom-2 -right-2 bg-white w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl shadow-lg border-2 border-neutral-900">
+                                    <Icon name="futbol" size={16} className="text-red-600" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="relative z-10 w-[62%] py-4 pr-4 sm:py-5 sm:pr-6 flex flex-col justify-between h-full">
+                            <div className="flex justify-end items-start gap-3 mb-1">
+                                <div className="text-right mt-1">
+                                    <h4 className="font-black text-xl sm:text-2xl tracking-widest text-white italic leading-none drop-shadow-md">FEFUTIN</h4>
+                                    <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/90 font-bold mt-1 drop-shadow-md">Carnet Oficial</p>
+                                </div>
+                                <img src={LOGO_URL} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-white shadow-md bg-white flex-shrink-0" />
+                            </div>
+
+                            <h3 className="font-black text-lg sm:text-[22px] leading-tight uppercase mt-2 text-white tracking-wide drop-shadow-md text-right line-clamp-2">{formData.player.name}</h3>
+                            
+                            <div className="flex gap-2 mt-3 w-full justify-end">
+                                <div className="bg-black/50 backdrop-blur-md px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-white/20 text-center shadow-inner flex-1 max-w-[110px]">
+                                    <p className="text-[8px] sm:text-[9px] text-red-400 font-black tracking-widest mb-0.5">DNI</p>
+                                    <p className="text-xs sm:text-sm font-bold text-white tracking-wider truncate">{formData.player.dni}</p>
+                                </div>
+                                <div className="bg-black/50 backdrop-blur-md px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-white/20 text-center shadow-inner flex-1 max-w-[110px]">
+                                    <p className="text-[8px] sm:text-[9px] text-red-400 font-black tracking-widest mb-0.5">NAC</p>
+                                    <p className="text-xs sm:text-sm font-bold text-white tracking-wider truncate">{formData.player.dob ? formData.player.dob.split('-').reverse().join('/') : '-'}</p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 bg-white rounded-xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-3 shadow-lg border-b-4 border-neutral-900">
+                                <img src={formData.team.logo} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white border border-neutral-200 object-cover flex-shrink-0 shadow-sm" />
+                                <div className="flex flex-col overflow-hidden">
+                                    <span className="font-black text-[11px] sm:text-[13px] uppercase tracking-wide text-neutral-900 truncate leading-none">{formData.team.name}</span>
+                                    <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-red-600 mt-0.5 truncate">
+                                        {formData.disciplineTitle} {formData.categoryName && `> ${formData.categoryName}`} {' > '} {formData.divisionName}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                      </div>
+
+                      {isAdmin && (
+                        <div className="w-full bg-white rounded-3xl p-5 mt-6 shadow-xl flex-shrink-0 relative">
+                          {formData.player.dniPhoto ? (
+                            <>
+                              <h4 className="text-xs font-black text-neutral-800 mb-3 uppercase tracking-wider flex items-center gap-2">
+                                <IdCard size={16} className="text-red-600"/> DNI Adjunto
+                              </h4>
+                              <img src={formData.player.dniPhoto} className="w-full rounded-2xl border-2 border-neutral-100 shadow-sm object-contain bg-neutral-50 max-h-[250px]" />
+                            </>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-neutral-400 py-6">
+                               <IdCard size={40} className="mb-3 opacity-30"/>
+                               <p className="text-xs font-bold uppercase tracking-wider">Sin DNI en el sistema</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* --- PANTALLA DE PLANTEL --- */}
+                  {modalConfig.type === 'ROSTER' && modalTeam && (
+                    <div className="w-full h-full sm:h-[85vh] max-w-md bg-neutral-100 sm:rounded-[2rem] overflow-hidden flex flex-col relative shadow-2xl animate-in slide-in-from-bottom-4">
+                      <div className="bg-[#fbd535] pt-12 sm:pt-6 flex flex-col flex-shrink-0">
+                        <div className="flex items-center justify-between px-4 mb-6 text-white">
+                          <button onClick={closeModal} className="p-2 -ml-2 hover:text-white/80 transition-colors">
+                            <ArrowLeft size={24} />
+                          </button>
+                          <h2 className="text-xl font-bold uppercase tracking-wider">{modalTeam.name}</h2>
+                          <div className="w-10"></div>
+                        </div>
+                        
+                        <div className="flex px-4 gap-2">
+                          <button 
+                            onClick={() => setFormData({...formData, rosterTab: 'jugadores'})}
+                            className={`flex-1 py-3 rounded-t-2xl text-[13px] font-black tracking-widest uppercase transition-colors ${(!formData.rosterTab || formData.rosterTab === 'jugadores') ? 'bg-neutral-100 text-[#fbd535]' : 'text-white/80 hover:text-white'}`}
+                          >
+                            Jugadores
+                          </button>
+                          <button 
+                            onClick={() => setFormData({...formData, rosterTab: 'partidos'})}
+                            className={`flex-1 py-3 rounded-t-2xl text-[13px] font-black tracking-widest uppercase transition-colors ${formData.rosterTab === 'partidos' ? 'bg-neutral-100 text-[#fbd535]' : 'text-white/80 hover:text-white'}`}
+                          >
+                            Partidos
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto bg-neutral-100 p-4 scrollbar-hide pb-24 relative">
+                        {scanState && (
+                            <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-6 animate-in fade-in">
+                                <h3 className="font-black text-[#153465] text-lg mb-6 uppercase tracking-widest text-center">
+                                    {scanState === 'scanning' ? 'Verificación Biométrica' : 'Identidad Confirmada'}
+                                </h3>
+                                <div className="flex gap-4 mb-6 relative">
+                                    <div className="relative w-28 h-28 rounded-2xl overflow-hidden border-[3px] border-[#153465] shadow-lg bg-neutral-200">
+                                        <img src={formData.playerPhotoBase64} className="w-full h-full object-cover" />
+                                        {scanState === 'scanning' && <div className="scanner-line"></div>}
+                                    </div>
+                                    <div className="relative w-28 h-28 rounded-2xl overflow-hidden border-[3px] border-[#153465] shadow-lg bg-neutral-200">
+                                        <img src={formData.playerDniPhotoBase64} className="w-full h-full object-cover" />
+                                        {scanState === 'scanning' && <div className="scanner-line" style={{animationDelay: '0.2s'}}></div>}
+                                    </div>
+                                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-full p-2 shadow-xl border-2 border-neutral-200">
+                                        {scanState === 'scanning' ? <Fingerprint size={24} className="text-blue-500 animate-pulse"/> : <CheckCircle2 size={24} className="text-green-500"/>}
+                                    </div>
+                                </div>
+                                {scanState === 'scanning' ? (
+                                    <div className="text-center">
+                                        <p className="text-sm font-bold text-neutral-600 animate-pulse mb-1">Analizando rasgos faciales...</p>
+                                        <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Comparando con Base de Datos RENAPER</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center text-green-600 animate-in zoom-in duration-300">
+                                        <p className="text-xl font-black uppercase tracking-widest text-center mb-1">Coincidencia: 98.7%</p>
+                                        <p className="text-xs font-bold text-neutral-500">Guardando ficha oficial del jugador...</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {(!formData.rosterTab || formData.rosterTab === 'jugadores') && (
+                          <>
+                            <div className="flex items-start gap-4 mb-6 px-2 mt-4">
+                              <img src={modalTeam.logo} className="w-[80px] h-[80px] object-cover rounded-xl shadow-sm bg-white p-1" />
+                              <div className="flex flex-col pt-1 w-full">
+                                <h3 className="text-[#153465] text-2xl font-black leading-none mb-2 uppercase">{modalTeam.name}</h3>
+                                {isAdmin && formData.isEditingCoach ? (
+                                    <div className="flex items-center gap-2 mt-1 w-full">
+                                        <input 
+                                            type="text" 
+                                            className="flex-1 border border-neutral-300 rounded-lg px-2 py-1.5 text-xs font-bold focus:border-[#fbd535] focus:outline-none uppercase text-black"
+                                            value={formData.tempCoach !== undefined ? formData.tempCoach : (modalTeam.coach || '')}
+                                            onChange={e => setFormData({...formData, tempCoach: e.target.value})}
+                                            placeholder="Nombre del DT"
+                                        />
+                                        <button onClick={() => {
+                                            updateCoach(formData.tempCoach !== undefined ? formData.tempCoach : modalTeam.coach);
+                                            setFormData({...formData, isEditingCoach: false});
+                                        }} className="p-1.5 bg-green-500 text-white rounded-lg shadow-sm hover:bg-green-600 transition-colors">
+                                            <CheckCircle2 size={14} />
+                                        </button>
+                                        <button onClick={() => setFormData({...formData, isEditingCoach: false})} className="p-1.5 bg-neutral-200 text-neutral-600 rounded-lg shadow-sm hover:bg-neutral-300 transition-colors">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="text-[#153465] text-sm font-medium flex flex-wrap items-center gap-2">
+                                        Entrenador: <span className="uppercase font-bold">{modalTeam.coach || 'NO ASIGNADO'}</span>
+                                        {isAdmin && (
+                                        <button onClick={() => setFormData({...formData, isEditingCoach: true, tempCoach: modalTeam.coach || ''})} className="p-1.5 bg-white rounded-lg shadow-sm text-neutral-400 hover:text-[#153465] transition-colors" title="Editar entrenador">
+                                            <Edit2 size={12} />
+                                        </button>
+                                        )}
+                                    </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {isAdmin && (
+                              formData.isAddingPlayer ? (
+                                <div className="bg-white p-4 rounded-2xl border border-neutral-200 mb-6 shadow-sm flex flex-col gap-3 relative">
+                                  <button onClick={() => setFormData({...formData, isAddingPlayer: false, rosterError: null})} className="absolute top-3 right-3 text-neutral-400 hover:text-red-500 transition-colors" title="Cancelar">
+                                    <X size={18} />
+                                  </button>
+                                  <h4 className="font-bold text-[#153465] mb-1 flex items-center gap-2"><UserPlus size={16}/> Fichar Jugador</h4>
+                                  
+                                  {formData.rosterError && (
+                                    <div className="text-red-500 text-xs font-bold text-center bg-red-50 py-1 rounded-md">{formData.rosterError}</div>
+                                  )}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <input type="text" className="border border-neutral-300 rounded-xl px-3 py-2 text-sm focus:border-[#fbd535] focus:outline-none uppercase" placeholder="Apellido y Nombre" value={formData.playerName || ''} onChange={e => setFormData({...formData, playerName: e.target.value})} />
+                                    <input type="number" className="border border-neutral-300 rounded-xl px-3 py-2 text-sm focus:border-[#fbd535] focus:outline-none" placeholder="DNI" value={formData.playerDni || ''} onChange={e => setFormData({...formData, playerDni: e.target.value})} />
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                                     <div className="flex flex-col">
+                                        <span className="text-[10px] text-neutral-500 font-bold ml-1 mb-1">Fecha de Nacimiento</span>
+                                        <input type="date" className="border border-neutral-300 rounded-xl px-3 py-2 text-sm focus:border-[#fbd535] focus:outline-none text-neutral-600" value={formData.playerDob || ''} onChange={e => setFormData({...formData, playerDob: e.target.value})} />
+                                     </div>
+                                     <div className="flex gap-2 h-full items-end pb-[1px]">
+                                        <input type="file" accept="image/*" id="player-photo" className="hidden" onChange={handlePhotoUpload} />
+                                        <label htmlFor="player-photo" className={`flex-1 flex items-center justify-center border rounded-xl px-2 py-2 text-[10px] sm:text-xs font-bold cursor-pointer transition-colors h-[38px] ${formData.playerPhotoBase64 ? 'bg-green-50 text-green-700 border-green-300' : 'bg-neutral-50 border-neutral-300 hover:bg-neutral-100 text-neutral-600'}`} title="Subir foto de perfil">
+                                            {formData.playerPhotoBase64 ? <><CheckCircle2 size={12} className="mr-1"/> Perfil</> : '📸 Perfil'}
+                                        </label>
+
+                                        <input type="file" accept="image/*" id="player-dni-photo" className="hidden" onChange={handleDniPhotoUpload} />
+                                        <label htmlFor="player-dni-photo" className={`flex-1 flex items-center justify-center border rounded-xl px-2 py-2 text-[10px] sm:text-xs font-bold cursor-pointer transition-colors h-[38px] ${formData.playerDniPhotoBase64 ? 'bg-green-50 text-green-700 border-green-300' : 'bg-neutral-50 border-neutral-300 hover:bg-neutral-100 text-neutral-600'}`} title="Subir foto del DNI">
+                                            {formData.playerDniPhotoBase64 ? <><CheckCircle2 size={12} className="mr-1"/> DNI</> : '📸 DNI'}
+                                        </label>
+
+                                        <button onClick={savePlayer} className="bg-[#153465] hover:bg-[#0f254a] text-white px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors h-[38px]" title="Fichar Jugador">
+                                          Guardar
+                                        </button>
+                                     </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button onClick={() => setFormData({...formData, isAddingPlayer: true})} className="mb-6 w-full py-4 border-2 border-dashed border-[#fbd535] bg-yellow-50 text-yellow-700 rounded-xl hover:bg-yellow-100 font-bold flex items-center justify-center gap-2 transition-colors">
+                                  <UserPlus size={20} /> Fichar Jugador
+                                </button>
+                              )
+                            )}
+
+                            <div className="space-y-3">
+                              {!modalTeam.players || modalTeam.players.length === 0 ? (
+                                <p className="text-sm text-neutral-500 text-center py-8">
+                                  {isAdmin ? "Aún no has fichado jugadores." : "El plantel aún no está publicado."}
+                                </p>
+                              ) : (
+                                modalTeam.players.map(player => (
+                                  <div 
+                                    key={player.id} 
+                                    className="bg-white rounded-[1.25rem] p-3 sm:p-4 flex items-center gap-4 shadow-sm border border-neutral-100 relative group cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
+                                    onClick={() => openModal('PLAYER_CARD', { 
+                                        player, 
+                                        team: modalTeam,
+                                        disciplineTitle: disciplines[selectedDiscipline].title,
+                                        categoryName: disciplines[selectedDiscipline].categories.length > 1 ? selectedCategory.name : '',
+                                        divisionName: selectedDivision.name
+                                    })}
+                                  >
+                                      {isAdmin && (
+                                        <button onClick={(e) => { e.stopPropagation(); executeDeletePlayer(player.id); }} className="absolute top-1/2 -translate-y-1/2 right-3 p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-colors z-10" title="Eliminar jugador">
+                                            <Trash2 size={16} />
+                                        </button>
+                                      )}
+
+                                      <div className="relative flex-shrink-0">
+                                        <img src={player.photo} className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-neutral-100 bg-neutral-50" />
+                                      </div>
+
+                                      <div className="flex-1 pr-10 sm:pr-12 flex items-center justify-between">
+                                        <h4 className="text-[#153465] font-black uppercase text-sm sm:text-base leading-tight tracking-tight group-hover:text-blue-600 transition-colors">{player.name}</h4>
+                                        <div className="text-neutral-300 group-hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 mr-2 sm:mr-8">
+                                            <IdCard size={20} />
+                                        </div>
+                                      </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </>
+                        )}
+
+                        {formData.rosterTab === 'partidos' && (
+                          <div className="space-y-4 pt-2">
+                              {teamMatches.length === 0 ? (
+                                <p className="text-center text-neutral-500 py-8">El equipo no tiene partidos registrados aún.</p>
+                              ) : (
+                                teamMatches.map((match, idx) => (
+                                    <div key={idx} className="relative bg-white rounded-2xl p-4 shadow-sm border border-neutral-200 flex items-center justify-between mt-6">
+                                      <div className={`absolute -top-2.5 left-1/2 -translate-x-1/2 text-white text-[9px] font-black px-3 py-0.5 rounded shadow-sm uppercase tracking-wider ${match.status === 'FINALIZADO' ? 'bg-[#ff0055]' : 'bg-neutral-500'}`}>
+                                        {match.status}
+                                      </div>
+                                      
+                                      <div className="flex flex-col items-center w-[30%]">
+                                        <img src={match.homeLogo} alt="" className="w-10 h-10 rounded-full mb-2 shadow-sm border object-cover" />
+                                        <span className="text-[9px] text-center uppercase font-bold text-neutral-600 leading-tight">{match.home}</span>
+                                      </div>
+                                      
+                                      <div className="flex items-center justify-center w-[40%] gap-2">
+                                        {match.status === 'FINALIZADO' ? (
+                                          <>
+                                            <span className="text-3xl font-light text-[#2b2d42]">{match.homeScore}</span>
+                                            <div className="flex flex-col gap-1.5">
+                                              <span className="w-1.5 h-1.5 bg-neutral-300 rounded-full"></span>
+                                              <span className="w-1.5 h-1.5 bg-neutral-300 rounded-full"></span>
+                                            </div>
+                                            <span className="text-3xl font-light text-[#2b2d42]">{match.awayScore}</span>
+                                          </>
+                                        ) : (
+                                          <span className="text-xs font-bold text-neutral-500 text-center bg-neutral-100 px-2 py-1 rounded-lg">{match.date}</span>
+                                        )}
+                                      </div>
+
+                                      <div className="flex flex-col items-center w-[30%]">
+                                        <img src={match.awayLogo} alt="" className="w-10 h-10 rounded-full mb-2 shadow-sm border object-cover" />
+                                        <span className="text-[9px] text-center uppercase font-bold text-neutral-600 leading-tight">{match.away}</span>
+                                      </div>
+
+                                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-neutral-400 font-bold bg-neutral-100 px-2 rounded-md">
+                                        {match.round}
+                                      </div>
+                                    </div>
+                                ))
+                              )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* MODALES CLÁSICOS */}
+                  {modalConfig.type !== 'ROSTER' && modalConfig.type !== 'PLAYER_CARD' && (
+                    <div className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-2xl relative">
+                      <button onClick={closeModal} className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-red-600 bg-neutral-100 rounded-full transition-colors"><X size={20}/></button>
+                      
+                      {modalConfig.type === 'ADD_DISCIPLINE' && (
+                        <>
+                          <h3 className="text-2xl font-black text-neutral-900 mb-6 flex items-center gap-2"><Plus className="text-emerald-600"/> Nueva Disciplina</h3>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-bold text-neutral-700 mb-1">Nombre de la Disciplina</label>
+                              <input type="text" className="w-full border-2 border-neutral-200 rounded-xl p-3 focus:border-emerald-500 focus:outline-none" placeholder="Ej: Vóley, Futsal, etc." value={formData.disciplineName || ''} onChange={e => setFormData({...formData, disciplineName: e.target.value})} />
+                            </div>
+                            <button onClick={saveDiscipline} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl mt-4 transition-colors">Crear Disciplina</button>
+                          </div>
+                        </>
+                      )}
+
+                      {modalConfig.type === 'MANAGE_TEAMS' && (
+                        <>
+                          <h3 className="text-2xl font-black text-neutral-900 mb-6 flex items-center gap-2">
+                            <Users className="text-red-600"/> Equipos de {disciplines[selectedDiscipline].categories.length === 1 ? disciplines[selectedDiscipline].title : selectedCategory.name}
+                          </h3>
+                          
+                          <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-200 mb-6">
+                            <h4 className="font-bold text-sm text-neutral-700 mb-3 flex items-center gap-1"><Plus size={16}/> Nuevo Equipo</h4>
+                            
+                            <div className="space-y-3">
+                              <input type="text" className="w-full border border-neutral-300 rounded-lg p-2.5 text-sm focus:border-red-500 focus:outline-none bg-white" placeholder="Nombre del Equipo" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
+                              
+                              <div className="flex gap-2">
+                                <input type="file" accept="image/*" id="team-photo" className="hidden" onChange={handleTeamPhotoUpload} />
+                                <label htmlFor="team-photo" className={`flex-1 flex items-center justify-center border rounded-lg px-3 py-2.5 text-xs font-bold cursor-pointer transition-colors ${formData.teamPhotoBase64 ? 'bg-green-50 text-green-700 border-green-300' : 'bg-white border-neutral-300 hover:bg-neutral-100 text-neutral-600'}`}>
+                                    {formData.teamPhotoBase64 ? <><CheckCircle2 size={16} className="mr-2"/> Escudo listo</> : '📸 Subir Escudo Local'}
+                                </label>
+                              </div>
+
+                              <button onClick={saveTeam} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition-colors flex justify-center items-center gap-2 text-sm shadow-sm">
+                                Agregar a la lista
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h4 className="font-bold text-sm text-neutral-700 mb-3">Equipos Inscriptos ({categoryTeams.length})</h4>
+                            <div className="max-h-[40vh] overflow-y-auto pr-2 space-y-2 scrollbar-thin">
+                              {categoryTeams.length === 0 ? (
+                                <p className="text-sm text-neutral-500 text-center py-6 bg-white rounded-xl border border-dashed border-neutral-200">No hay equipos agregados todavía.</p>
+                              ) : (
+                                categoryTeams.map(team => (
+                                  <div key={team.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-neutral-200 shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                      <img src={team.logo} alt="" className="w-8 h-8 rounded-full border border-neutral-100 object-cover" />
+                                      <span className="font-bold text-sm text-neutral-800">{team.name}</span>
+                                    </div>
+                                    <button onClick={() => executeDeleteTeam(team.name)} className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar equipo">
+                                      <Trash2 size={18} />
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {modalConfig.type === 'FECHA' && (
+                        <>
+                          <h3 className="text-2xl font-black text-neutral-900 mb-6 flex items-center gap-2"><CalendarDays className="text-red-600"/> Nueva Fecha</h3>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-bold text-neutral-700 mb-1">Nombre de la Fecha</label>
+                              <input type="text" className="w-full border-2 border-neutral-200 rounded-xl p-3 focus:border-red-500 focus:outline-none" placeholder="Ej: 3º Fecha" value={formData.round || ''} onChange={e => setFormData({...formData, round: e.target.value})} />
+                            </div>
+                            <button onClick={saveFecha} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl mt-4 transition-colors">Crear Fecha</button>
+                          </div>
+                        </>
+                      )}
+
+                      {modalConfig.type === 'MATCH' && (
+                        <>
+                          <h3 className="text-2xl font-black text-neutral-900 mb-6 flex items-center gap-2"><Plus className="text-red-600"/> Programar Partido</h3>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-bold text-neutral-700 mb-1">Equipo Local</label>
+                              <select className="w-full border-2 border-neutral-200 rounded-xl p-3 focus:border-red-500 focus:outline-none bg-white" onChange={e => setFormData({...formData, home: e.target.value})}>
+                                <option value="">Seleccionar...</option>
+                                {currentData.teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-bold text-neutral-700 mb-1">Equipo Visitante</label>
+                              <select className="w-full border-2 border-neutral-200 rounded-xl p-3 focus:border-red-500 focus:outline-none bg-white" onChange={e => setFormData({...formData, away: e.target.value})}>
+                                <option value="">Seleccionar...</option>
+                                {currentData.teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-bold text-neutral-700 mb-1">Día y Horario</label>
+                              <input type="text" className="w-full border-2 border-neutral-200 rounded-xl p-3 focus:border-red-500 focus:outline-none" placeholder="Ej: Sáb 14 Nov - 16:00" value={formData.date || ''} onChange={e => setFormData({...formData, date: e.target.value})} />
+                            </div>
+                            <button onClick={saveMatch} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl mt-4 transition-colors">Guardar Partido</button>
+                          </div>
+                        </>
+                      )}
+
+                      {modalConfig.type === 'RESULT' && (
+                        <>
+                          <h3 className="text-2xl font-black text-neutral-900 mb-6 flex items-center gap-2"><Trophy className="text-red-600"/> Cargar Resultado</h3>
+                          <p className="text-sm text-neutral-500 mb-6">Al guardar, el partido pasará a estar FINALIZADO y la tabla se actualizará automáticamente.</p>
+                          <div className="flex items-center justify-center gap-6 mb-8">
+                            <div className="flex flex-col items-center">
+                              <label className="font-bold text-neutral-500 text-sm mb-2">LOCAL</label>
+                              <input type="number" min="0" className="w-20 h-20 text-center text-4xl font-black border-2 border-neutral-200 rounded-2xl focus:border-red-500 focus:outline-none bg-neutral-50" value={formData.homeScore} onChange={e => setFormData({...formData, homeScore: e.target.value})} />
+                            </div>
+                            <span className="text-3xl font-light text-neutral-400">-</span>
+                            <div className="flex flex-col items-center">
+                              <label className="font-bold text-neutral-500 text-sm mb-2">VISITANTE</label>
+                              <input type="number" min="0" className="w-20 h-20 text-center text-4xl font-black border-2 border-neutral-200 rounded-2xl focus:border-red-500 focus:outline-none bg-neutral-50" value={formData.awayScore} onChange={e => setFormData({...formData, awayScore: e.target.value})} />
+                            </div>
+                          </div>
+                          <button onClick={saveResult} className="w-full bg-neutral-900 hover:bg-black text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2"><Save size={20}/> Guardar Resultado</button>
+                        </>
+                      )}
+
+                      {modalConfig.type === 'DELETE_FECHA' && (
+                        <>
+                          <h3 className="text-2xl font-black text-neutral-900 mb-4 flex items-center gap-2"><Trash2 className="text-red-600"/> Eliminar Fecha</h3>
+                          <p className="text-neutral-600 mb-8">¿Eliminar la fecha <strong>{formData.roundName}</strong>?</p>
+                          <div className="flex gap-4">
+                            <button onClick={closeModal} className="flex-1 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 font-bold py-4 rounded-xl transition-colors">Cancelar</button>
+                            <button onClick={executeDeleteFecha} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl transition-colors">Sí, Eliminar</button>
+                          </div>
+                        </>
+                      )}
+
+                      {modalConfig.type === 'DELETE_MATCH' && (
+                        <>
+                          <h3 className="text-2xl font-black text-neutral-900 mb-4 flex items-center gap-2"><Trash2 className="text-red-600"/> Eliminar Partido</h3>
+                          <p className="text-neutral-600 mb-8">¿Eliminar el partido <strong>{formData.matchName}</strong>?</p>
+                          <div className="flex gap-4">
+                            <button onClick={closeModal} className="flex-1 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 font-bold py-4 rounded-xl transition-colors">Cancelar</button>
+                            <button onClick={executeDeleteMatch} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl transition-colors">Sí, Eliminar</button>
+                          </div>
+                        </>
+                      )}
+
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
